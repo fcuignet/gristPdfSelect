@@ -12,11 +12,17 @@
       <header>
         <h1>Pièce jointe PDF</h1>
         <p class="subtitle">
-          Choisissez une valeur puis affichez le PDF associé à la ligne sélectionnée.
+          Choisissez une colonne menu, une colonne PDF, puis la valeur de l'enregistrement.
         </p>
       </header>
 
-      <label for="record-select" class="field-label">Valeur de la colonne menu</label>
+      <label for="menu-column-select" class="field-label">Colonne menu (sélection d'enregistrement)</label>
+      <select id="menu-column-select"></select>
+
+      <label for="pdf-column-select" class="field-label">Colonne PDF à afficher</label>
+      <select id="pdf-column-select"></select>
+
+      <label for="record-select" class="field-label">Valeur de l'enregistrement</label>
       <select id="record-select"></select>
 
       <p id="status" class="status">Chargement des données…</p>

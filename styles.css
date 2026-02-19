@@ -32,6 +32,8 @@ h1 {
   margin-top: 0.25rem;
 }
 
+#menu-column-select,
+#pdf-column-select,
 #record-select {
   width: 100%;
   padding: 0.55rem 0.7rem;

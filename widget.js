@@ -3,7 +3,9 @@ const DEFAULT_MAPPING = {
   pdfColumn: "PieceJointe",
 };
 
-const selectEl = document.getElementById("record-select");
+const menuColumnSelectEl = document.getElementById("menu-column-select");
+const pdfColumnSelectEl = document.getElementById("pdf-column-select");
+const recordSelectEl = document.getElementById("record-select");
 const statusEl = document.getElementById("status");
 const viewerContainerEl = document.getElementById("viewer-container");
 const viewerEl = document.getElementById("pdf-viewer");
@@ -34,12 +36,41 @@ function getAttachmentId(pdfCellValue) {
   return null;
 }
 
+function getRowColumns(rows) {
+  const names = new Set();
+  rows.forEach((row) => {
+    Object.keys(row || {}).forEach((key) => {
+      if (!key.startsWith("_")) {
+        names.add(key);
+      }
+    });
+  });
+  return [...names];
+}
+
+function setSelectOptions(selectElement, options, preferredValue) {
+  if (!options.length) {
+    selectElement.innerHTML = "";
+    return null;
+  }
+
+  const finalValue = options.includes(preferredValue) ? preferredValue : options[0];
+  selectElement.innerHTML = options
+    .map((name) => {
+      const selected = name === finalValue ? "selected" : "";
+      return `<option value="${escapeHtml(name)}" ${selected}>${escapeHtml(name)}</option>`;
+    })
+    .join("");
+
+  selectElement.value = finalValue;
+  return finalValue;
+}
+
 async function buildAttachmentUrl(attachmentId) {
   if (!attachmentId) {
     return null;
   }
 
-  // Works in Grist custom widgets to authenticate direct attachment access.
   const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
   const baseUrl = tokenInfo.baseUrl || window.location.origin;
   const token = tokenInfo.token ? `auth=${encodeURIComponent(tokenInfo.token)}` : "";
@@ -48,9 +79,13 @@ async function buildAttachmentUrl(attachmentId) {
   return `${baseUrl}/attachments/${attachmentId}/download${query}`;
 }
 
-async function showRowPdfByMenuValue(selectedValue) {
-  const row = latestRows.find((r) => String(r[currentMapping.menuColumn] ?? "") === selectedValue);
+function getSelectedRow() {
+  const selectedValue = recordSelectEl.value;
+  return latestRows.find((row) => String(row[currentMapping.menuColumn] ?? "") === selectedValue);
+}
 
+async function showCurrentSelectionPdf() {
+  const row = getSelectedRow();
   if (!row) {
     viewerContainerEl.hidden = true;
     viewerEl.removeAttribute("src");
@@ -62,38 +97,64 @@ async function showRowPdfByMenuValue(selectedValue) {
   if (!attachmentId) {
     viewerContainerEl.hidden = true;
     viewerEl.removeAttribute("src");
-    setStatus("La ligne sélectionnée ne contient pas de pièce jointe PDF.");
+    setStatus("La ligne sélectionnée ne contient pas de pièce jointe PDF dans cette colonne.");
     return;
   }
 
   const url = await buildAttachmentUrl(attachmentId);
   viewerEl.src = url;
   viewerContainerEl.hidden = false;
-  setStatus(`PDF chargé pour « ${selectedValue} ».`);
+  setStatus(
+    `PDF chargé pour « ${recordSelectEl.value} » depuis la colonne « ${currentMapping.pdfColumn} ».`
+  );
 }
 
-function refreshOptions(rows) {
-  const validRows = rows.filter((r) => r[currentMapping.menuColumn] != null && r[currentMapping.menuColumn] !== "");
-  latestRows = validRows;
+function refreshRecordSelect() {
+  const validRows = latestRows.filter(
+    (row) => row[currentMapping.menuColumn] != null && row[currentMapping.menuColumn] !== ""
+  );
 
-  selectEl.innerHTML = validRows
+  recordSelectEl.innerHTML = validRows
     .map((row, idx) => {
       const value = String(row[currentMapping.menuColumn]);
       return `<option value="${escapeHtml(value)}" ${idx === 0 ? "selected" : ""}>${escapeHtml(value)}</option>`;
     })
     .join("");
 
-  if (validRows.length === 0) {
+  if (!validRows.length) {
     viewerContainerEl.hidden = true;
     viewerEl.removeAttribute("src");
-    setStatus("Aucune donnée disponible. Vérifiez les colonnes configurées.");
+    setStatus("Aucun enregistrement trouvé pour la colonne menu sélectionnée.");
     return;
   }
 
-  showRowPdfByMenuValue(selectEl.value).catch((error) => {
+  showCurrentSelectionPdf().catch((error) => {
     console.error(error);
-    setStatus("Impossible d'afficher le PDF pour la valeur sélectionnée.");
+    setStatus("Impossible d'afficher le PDF pour cette sélection.");
   });
+}
+
+function refreshColumnsAndRecords(rows) {
+  latestRows = rows || [];
+  const columns = getRowColumns(latestRows);
+
+  if (!columns.length) {
+    menuColumnSelectEl.innerHTML = "";
+    pdfColumnSelectEl.innerHTML = "";
+    recordSelectEl.innerHTML = "";
+    viewerContainerEl.hidden = true;
+    viewerEl.removeAttribute("src");
+    setStatus("Aucune donnée disponible.");
+    return;
+  }
+
+  const selectedMenuColumn = setSelectOptions(menuColumnSelectEl, columns, currentMapping.menuColumn);
+  const selectedPdfColumn = setSelectOptions(pdfColumnSelectEl, columns, currentMapping.pdfColumn);
+
+  currentMapping.menuColumn = selectedMenuColumn;
+  currentMapping.pdfColumn = selectedPdfColumn;
+
+  refreshRecordSelect();
 }
 
 function parseMapping(options) {
@@ -106,40 +167,51 @@ function parseMapping(options) {
 
 function initStandaloneMock() {
   const mockRows = [
-    { Categorie: "Facture Janvier", PieceJointe: [11] },
-    { Categorie: "Facture Février", PieceJointe: [13] },
+    { Categorie: "Facture Janvier", PieceJointe: [11], AutrePdf: [17] },
+    { Categorie: "Facture Février", PieceJointe: [13], AutrePdf: [] },
   ];
 
   parseMapping({});
-  refreshOptions(mockRows);
-  setStatus(
-    "Mode démo local: connectez ce widget à Grist pour afficher de vrais PDFs de pièces jointes."
-  );
+  refreshColumnsAndRecords(mockRows);
+  setStatus("Mode démo local: connectez ce widget à Grist pour afficher de vrais PDFs.");
 }
 
 function initGristMode() {
   grist.ready({
     columns: [
-      { name: "menuColumn", title: "Colonne du menu déroulant", type: "Text" },
-      { name: "pdfColumn", title: "Colonne des pièces jointes PDF", type: "Attachments" },
+      { name: "menuColumn", title: "Colonne menu par défaut", type: "Text" },
+      { name: "pdfColumn", title: "Colonne PDF par défaut", type: "Attachments" },
     ],
     requiredAccess: "read table",
   });
 
   grist.onOptions((options) => {
     parseMapping(options);
-    setStatus(
-      `Colonnes configurées: menu « ${currentMapping.menuColumn} », PDF « ${currentMapping.pdfColumn} ».`
-    );
+    if (latestRows.length) {
+      refreshColumnsAndRecords(latestRows);
+    }
   });
 
   grist.onRecords((records) => {
-    refreshOptions(records || []);
+    refreshColumnsAndRecords(records || []);
   });
 }
 
-selectEl.addEventListener("change", () => {
-  showRowPdfByMenuValue(selectEl.value).catch((error) => {
+menuColumnSelectEl.addEventListener("change", () => {
+  currentMapping.menuColumn = menuColumnSelectEl.value;
+  refreshRecordSelect();
+});
+
+pdfColumnSelectEl.addEventListener("change", () => {
+  currentMapping.pdfColumn = pdfColumnSelectEl.value;
+  showCurrentSelectionPdf().catch((error) => {
+    console.error(error);
+    setStatus("Erreur lors du chargement du PDF.");
+  });
+});
+
+recordSelectEl.addEventListener("change", () => {
+  showCurrentSelectionPdf().catch((error) => {
     console.error(error);
     setStatus("Erreur lors du chargement du PDF.");
   });

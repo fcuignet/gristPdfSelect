@@ -2,9 +2,10 @@
 
 Widget Grist qui permet de:
 
-1. lire une colonne utilisée comme menu déroulant,
-2. sélectionner une valeur,
-3. afficher le PDF joint à la ligne correspondante (colonne de type `Attachments`).
+1. choisir la **colonne utilisée pour sélectionner un enregistrement**,
+2. choisir la **colonne PDF** à afficher,
+3. sélectionner une valeur d'enregistrement,
+4. afficher le PDF de la même ligne.
 
 ## Démarrer en local
 
@@ -20,10 +21,13 @@ Puis ouvrir <http://localhost:5173>.
 
 1. Hébergez ce dossier sur GitHub Pages (ou un autre hébergement statique).
 2. Dans Grist, ajoutez un **Custom Widget** et renseignez l'URL publiée.
-3. Configurez les colonnes dans les options du widget:
-   - `menuColumn`: la colonne à afficher dans le menu déroulant,
-   - `pdfColumn`: la colonne de pièces jointes PDF.
-4. Le widget affiche automatiquement le PDF de la valeur choisie.
+3. (Optionnel) Configurez des colonnes par défaut dans les options du widget:
+   - `menuColumn`: colonne menu par défaut,
+   - `pdfColumn`: colonne PDF par défaut.
+4. Dans le widget, vous pouvez ensuite changer directement:
+   - la colonne menu,
+   - la colonne PDF,
+   - la valeur d'enregistrement.
 
 ## Structure
 
