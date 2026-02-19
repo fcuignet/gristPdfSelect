@@ -30,6 +30,7 @@
       const viewerEl = document.getElementById("pdf-viewer");
 
       let currentMapping = { ...DEFAULT_MAPPING };
+      let latestRecord = null;
 
       function setStatus(message) { statusEl.textContent = message; }
 
@@ -52,6 +53,18 @@
         return `${baseUrl}/attachments/${attachmentId}${query}`;
       }
 
+
+      function getRecordCell(record, configuredColumn) {
+        if (!record || !configuredColumn) return undefined;
+        if (Object.prototype.hasOwnProperty.call(record, configuredColumn)) {
+          return record[configuredColumn];
+        }
+
+        const expected = String(configuredColumn).toLowerCase();
+        const key = Object.keys(record).find((k) => String(k).toLowerCase() === expected);
+        return key ? record[key] : undefined;
+      }
+
       async function renderRecord(record) {
         if (!record) {
           viewerContainerEl.hidden = true;
@@ -60,7 +73,7 @@
           return;
         }
 
-        const attachmentId = getAttachmentId(record[currentMapping.pdfColumn]);
+        const attachmentId = getAttachmentId(getRecordCell(record, currentMapping.pdfColumn));
         if (!attachmentId) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
@@ -76,7 +89,8 @@
 
       function parseMapping(options) {
         const mapping = options?.columns || {};
-        currentMapping = { pdfColumn: mapping.pdfColumn || DEFAULT_MAPPING.pdfColumn };
+        const configured = mapping.pdfColumn || DEFAULT_MAPPING.pdfColumn;
+        currentMapping = { pdfColumn: String(configured).trim() };
       }
 
       function initStandaloneMock() {
@@ -92,9 +106,16 @@
         grist.onOptions((options) => {
           parseMapping(options);
           setStatus(`Colonne PDF configurée: « ${currentMapping.pdfColumn} ».`);
+          if (latestRecord) {
+            renderRecord(latestRecord).catch((error) => {
+              console.error(error);
+              setStatus("Erreur lors du chargement du PDF.");
+            });
+          }
         });
 
         grist.onRecord((record) => {
+          latestRecord = record;
           renderRecord(record).catch((error) => {
             console.error(error);
             setStatus("Erreur lors du chargement du PDF.");
