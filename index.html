@@ -36,11 +36,16 @@
 
       function getAttachmentId(cellValue) {
         if (typeof cellValue === "number") return cellValue;
+        if (typeof cellValue === "string" && /^\d+$/.test(cellValue.trim())) return Number(cellValue.trim());
         if (!Array.isArray(cellValue) || cellValue.length === 0) return null;
 
         const first = cellValue[0];
         if (typeof first === "number") return first;
-        if (first && typeof first === "object" && typeof first.id === "number") return first.id;
+        if (typeof first === "string" && /^\d+$/.test(first.trim())) return Number(first.trim());
+        if (first && typeof first === "object") {
+          if (typeof first.id === "number") return first.id;
+          if (typeof first.id === "string" && /^\d+$/.test(first.id.trim())) return Number(first.id.trim());
+        }
         return null;
       }
 
@@ -73,11 +78,13 @@
           return;
         }
 
-        const attachmentId = getAttachmentId(getRecordCell(record, currentMapping.pdfColumn));
+        const mappedCell = record?.pdfColumn;
+        const configuredCell = getRecordCell(record, currentMapping.pdfColumn);
+        const attachmentId = getAttachmentId(mappedCell ?? configuredCell);
         if (!attachmentId) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
-          setStatus(`Aucun PDF trouvé dans la colonne « ${currentMapping.pdfColumn} » pour cette ligne.`);
+          setStatus(`Aucun PDF trouvé pour cette ligne (colonne configurée: « ${currentMapping.pdfColumn} »).`);
           return;
         }
 
