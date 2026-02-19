@@ -31,65 +31,87 @@
 
       let currentMapping = { ...DEFAULT_MAPPING };
       let latestRecord = null;
+      let currentBlobUrl = null;
 
       function setStatus(message) { statusEl.textContent = message; }
 
-      function getAttachmentId(cellValue) {
-        if (typeof cellValue === "number") return cellValue;
-        if (typeof cellValue === "string" && /^\d+$/.test(cellValue.trim())) return Number(cellValue.trim());
-        if (!Array.isArray(cellValue) || cellValue.length === 0) return null;
-
-        const first = cellValue[0];
-        if (typeof first === "number") return first;
-        if (typeof first === "string" && /^\d+$/.test(first.trim())) return Number(first.trim());
-        if (first && typeof first === "object") {
-          if (typeof first.id === "number") return first.id;
-          if (typeof first.id === "string" && /^\d+$/.test(first.id.trim())) return Number(first.id.trim());
+      function clearViewer(message) {
+        if (currentBlobUrl) {
+          URL.revokeObjectURL(currentBlobUrl);
+          currentBlobUrl = null;
         }
-        return null;
+        viewerEl.removeAttribute("src");
+        viewerContainerEl.hidden = true;
+        setStatus(message);
       }
-
-      async function buildAttachmentUrl(attachmentId) {
-        if (!attachmentId) return null;
-        const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
-        const baseUrl = tokenInfo.baseUrl || window.location.origin;
-        const token = tokenInfo.token ? `auth=${encodeURIComponent(tokenInfo.token)}` : "";
-        const query = token ? `?${token}` : "";
-        return `${baseUrl}/attachments/${attachmentId}${query}`;
-      }
-
 
       function getRecordCell(record, configuredColumn) {
         if (!record || !configuredColumn) return undefined;
-        if (Object.prototype.hasOwnProperty.call(record, configuredColumn)) {
-          return record[configuredColumn];
-        }
-
+        if (Object.prototype.hasOwnProperty.call(record, "pdfColumn")) return record.pdfColumn;
+        if (Object.prototype.hasOwnProperty.call(record, configuredColumn)) return record[configuredColumn];
         const expected = String(configuredColumn).toLowerCase();
         const key = Object.keys(record).find((k) => String(k).toLowerCase() === expected);
         return key ? record[key] : undefined;
       }
 
+      function getAttachmentId(value) {
+        if (value == null) return null;
+        if (typeof value === "number") return value;
+        if (typeof value === "string") {
+          const trimmed = value.trim();
+          return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
+        }
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            const id = getAttachmentId(item);
+            if (id) return id;
+          }
+          return null;
+        }
+        if (typeof value === "object") {
+          const candidates = [value.id, value.attachmentId, value.fileId, value.rowId];
+          for (const candidate of candidates) {
+            const id = getAttachmentId(candidate);
+            if (id) return id;
+          }
+        }
+        return null;
+      }
+
+      async function fetchPdfBlobUrl(attachmentId) {
+        const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
+        const baseUrl = tokenInfo.baseUrl || window.location.origin;
+        const token = tokenInfo.token ? `auth=${encodeURIComponent(tokenInfo.token)}` : "";
+        const query = token ? `?${token}` : "";
+
+        const response = await fetch(`${baseUrl}/attachments/${attachmentId}/download${query}`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.arrayBuffer();
+        const blob = new Blob([data], { type: "application/pdf" });
+        return URL.createObjectURL(blob);
+      }
+
       async function renderRecord(record) {
         if (!record) {
-          viewerContainerEl.hidden = true;
-          viewerEl.removeAttribute("src");
-          setStatus("Sélectionnez une ligne dans la table.");
+          clearViewer("Sélectionnez une ligne dans la table.");
           return;
         }
 
-        const mappedCell = record?.pdfColumn;
-        const configuredCell = getRecordCell(record, currentMapping.pdfColumn);
-        const attachmentId = getAttachmentId(mappedCell ?? configuredCell);
+        const cellValue = getRecordCell(record, currentMapping.pdfColumn);
+        const attachmentId = getAttachmentId(cellValue);
         if (!attachmentId) {
-          viewerContainerEl.hidden = true;
-          viewerEl.removeAttribute("src");
-          setStatus(`Aucun PDF trouvé pour cette ligne (colonne configurée: « ${currentMapping.pdfColumn} »).`);
+          clearViewer(`Aucun PDF trouvé (colonne: « ${currentMapping.pdfColumn} »).`);
           return;
         }
 
-        const url = await buildAttachmentUrl(attachmentId);
-        viewerEl.src = url;
+        const blobUrl = await fetchPdfBlobUrl(attachmentId);
+        if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+        currentBlobUrl = blobUrl;
+
+        viewerEl.src = blobUrl;
         viewerContainerEl.hidden = false;
         setStatus(`PDF affiché depuis la colonne « ${currentMapping.pdfColumn} ».`);
       }
@@ -101,23 +123,24 @@
       }
 
       function initStandaloneMock() {
-        setStatus("Mode local: ce widget affiche un PDF de la ligne active dans Grist.");
+        setStatus("Mode local: connectez ce widget à Grist et configurez pdfColumn.");
       }
 
       function initGristMode() {
         grist.ready({
-          columns: [{ name: "pdfColumn", title: "Colonne PDF (Attachments)", type: "Attachments" }],
+          columns: [{ name: "pdfColumn", title: "Colonne PDF (Pièce jointe)", type: "Attachments" }],
           requiredAccess: "read table",
         });
 
         grist.onOptions((options) => {
           parseMapping(options);
-          setStatus(`Colonne PDF configurée: « ${currentMapping.pdfColumn} ».`);
           if (latestRecord) {
             renderRecord(latestRecord).catch((error) => {
               console.error(error);
-              setStatus("Erreur lors du chargement du PDF.");
+              clearViewer("Erreur lors du chargement du PDF.");
             });
+          } else {
+            setStatus(`Colonne PDF configurée: « ${currentMapping.pdfColumn} ».`);
           }
         });
 
@@ -125,7 +148,7 @@
           latestRecord = record;
           renderRecord(record).catch((error) => {
             console.error(error);
-            setStatus("Erreur lors du chargement du PDF.");
+            clearViewer("Erreur lors du chargement du PDF.");
           });
         });
       }

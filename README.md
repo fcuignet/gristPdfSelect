@@ -2,14 +2,14 @@
 
 Widget Grist en fichier unique `index.html` pour afficher le PDF de la ligne sélectionnée.
 
-## Fonctionnement (très simple)
+## Fonctionnement
 
-1. Dans les options du widget, configurez **uniquement**:
-   - `pdfColumn` = colonne `Attachments` contenant le PDF.
+1. Dans les options du widget, configurez:
+   - `pdfColumn` = colonne **de type Pièce jointe / Attachments** contenant le PDF.
 2. Dans la table Grist, cliquez une ligne.
-3. Le PDF de cette ligne s’affiche dans le volet du widget.
+3. Le widget charge la pièce jointe et l'affiche directement dans le volet PDF.
 
-Le widget lit en priorité la colonne mappée par Grist (`pdfColumn`) puis retombe sur le nom configuré (insensible à la casse). Toute modification de l'option recharge la ligne active.
+Le widget lit la valeur mappée par Grist (`record.pdfColumn`) et recharge automatiquement l’affichage quand `pdfColumn` change.
 
 ## Démarrer en local
 
