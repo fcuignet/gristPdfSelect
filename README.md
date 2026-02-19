@@ -1,11 +1,17 @@
 # gristPdfSelect
 
-Widget Grist (fichier unique `index.html`) qui permet de:
+Widget Grist en fichier unique `index.html` pour afficher un PDF attaché selon l’enregistrement sélectionné.
 
-1. choisir la **colonne utilisée pour sélectionner un enregistrement**,
-2. choisir la **colonne PDF** à afficher,
-3. sélectionner une valeur d'enregistrement,
-4. afficher le PDF de la même ligne.
+## Fonctionnement
+
+Le widget:
+
+1. lit la colonne menu configurée dans les **options du widget** (`menuColumn`),
+2. affiche la liste des enregistrements via un menu déroulant,
+3. lit la colonne PDF configurée dans les **options du widget** (`pdfColumn`),
+4. affiche le PDF de la même ligne dans la vue intégrée.
+
+> Les colonnes ne sont **pas configurables depuis l’interface du widget** : elles se règlent uniquement dans les options Grist du widget.
 
 ## Démarrer en local
 
@@ -15,19 +21,13 @@ python3 -m http.server 5173
 
 Puis ouvrir <http://localhost:5173>.
 
-> En local, le widget fonctionne en mode démo avec des données fictives.
-
 ## Utiliser dans Grist
 
 1. Hébergez `index.html` (GitHub Pages ou autre hébergement statique).
 2. Dans Grist, ajoutez un **Custom Widget** et renseignez l'URL publiée.
-3. (Optionnel) Configurez des colonnes par défaut dans les options du widget:
-   - `menuColumn`: colonne menu par défaut,
-   - `pdfColumn`: colonne PDF par défaut.
-4. Dans le widget, vous pouvez ensuite changer directement:
-   - la colonne menu,
-   - la colonne PDF,
-   - la valeur d'enregistrement.
+3. Configurez les options du widget:
+   - `menuColumn`: colonne de sélection de l’enregistrement,
+   - `pdfColumn`: colonne de type `Attachments` contenant le PDF.
 
 ## Structure
 
