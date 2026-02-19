@@ -6,67 +6,26 @@
     <title>Grist PDF Select Widget</title>
     <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
     <style>
-      :root {
-        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-      body {
-        margin: 0;
-        background: #f4f6fb;
-        color: #1f2937;
-      }
-      .app {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 1rem;
-        display: grid;
-        gap: 0.75rem;
-      }
-      h1 {
-        margin: 0;
-        font-size: 1.4rem;
-      }
-      .subtitle {
-        margin: 0.2rem 0 0;
-        color: #4b5563;
-      }
-      .field-label {
-        font-weight: 600;
-      }
-      #record-select {
-        width: 100%;
-        padding: 0.55rem 0.7rem;
-        border-radius: 8px;
-        border: 1px solid #c8cfdb;
-        background: #fff;
-      }
-      .status {
-        margin: 0;
-        color: #374151;
-        font-size: 0.95rem;
-      }
-      .viewer-container {
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid #d6dbe6;
-        background: #fff;
-        min-height: 70vh;
-      }
-      .pdf-viewer {
-        border: 0;
-        width: 100%;
-        height: 70vh;
-        display: block;
-      }
+      :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; background: #f4f6fb; color: #1f2937; }
+      .app { max-width: 900px; margin: 0 auto; padding: 1rem; display: grid; gap: 0.75rem; }
+      h1 { margin: 0; font-size: 1.35rem; }
+      .subtitle { margin: 0.2rem 0 0; color: #4b5563; }
+      .field-label { font-weight: 600; }
+      #record-select { width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid #c8cfdb; background: #fff; }
+      .status { margin: 0; color: #374151; font-size: 0.95rem; }
+      .viewer-container { border-radius: 12px; overflow: hidden; border: 1px solid #d6dbe6; background: #fff; min-height: 70vh; }
+      .pdf-viewer { border: 0; width: 100%; height: 70vh; display: block; }
     </style>
   </head>
   <body>
     <main class="app">
       <header>
-        <h1>Pièce jointe PDF</h1>
-        <p class="subtitle">Sélectionnez un enregistrement puis affichez le PDF configuré dans les options du widget.</p>
+        <h1>Afficher le PDF d'une fiche</h1>
+        <p class="subtitle">Choisissez une fiche dans le menu déroulant pour afficher son PDF.</p>
       </header>
 
-      <label for="record-select" class="field-label">Enregistrement</label>
+      <label for="record-select" class="field-label">Fiche</label>
       <select id="record-select"></select>
 
       <p id="status" class="status">Chargement des données…</p>
@@ -77,10 +36,7 @@
     </main>
 
     <script>
-      const DEFAULT_MAPPING = {
-        menuColumn: "Categorie",
-        pdfColumn: "PieceJointe",
-      };
+      const DEFAULT_MAPPING = { menuColumn: "Categorie", pdfColumn: "PieceJointe" };
 
       const recordSelectEl = document.getElementById("record-select");
       const statusEl = document.getElementById("status");
@@ -88,12 +44,10 @@
       const viewerEl = document.getElementById("pdf-viewer");
 
       let latestRows = [];
+      let rowByKey = new Map();
       let currentMapping = { ...DEFAULT_MAPPING };
 
-      function setStatus(message) {
-        statusEl.textContent = message;
-      }
-
+      function setStatus(message) { statusEl.textContent = message; }
       function escapeHtml(value) {
         return String(value)
           .replace(/&/g, "&amp;")
@@ -103,41 +57,39 @@
           .replace(/'/g, "&#39;");
       }
 
-      function getAttachmentId(pdfCellValue) {
-        if (Array.isArray(pdfCellValue)) {
-          return pdfCellValue[0] ?? null;
-        }
-        if (typeof pdfCellValue === "number") {
-          return pdfCellValue;
-        }
+      function rowKey(row, index) {
+        return String(row.id ?? row._id ?? index);
+      }
+
+      function getAttachmentId(cellValue) {
+        if (typeof cellValue === "number") return cellValue;
+        if (!Array.isArray(cellValue) || cellValue.length === 0) return null;
+
+        const first = cellValue[0];
+        if (typeof first === "number") return first;
+        if (first && typeof first === "object" && typeof first.id === "number") return first.id;
         return null;
       }
 
       async function buildAttachmentUrl(attachmentId) {
-        if (!attachmentId) {
-          return null;
-        }
-
+        if (!attachmentId) return null;
         const tokenInfo = await grist.docApi.getAccessToken({ readOnly: true });
         const baseUrl = tokenInfo.baseUrl || window.location.origin;
         const token = tokenInfo.token ? `auth=${encodeURIComponent(tokenInfo.token)}` : "";
         const query = token ? `?${token}` : "";
-
-        // /attachments/{id} allows inline display in iframe for PDFs.
         return `${baseUrl}/attachments/${attachmentId}${query}`;
       }
 
       function getSelectedRow() {
-        const selectedValue = recordSelectEl.value;
-        return latestRows.find((row) => String(row[currentMapping.menuColumn] ?? "") === selectedValue);
+        return rowByKey.get(recordSelectEl.value) || null;
       }
 
-      async function showCurrentSelectionPdf() {
+      async function showSelectedPdf() {
         const row = getSelectedRow();
         if (!row) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
-          setStatus("Aucune ligne correspondante.");
+          setStatus("Aucune fiche sélectionnée.");
           return;
         }
 
@@ -145,38 +97,42 @@
         if (!attachmentId) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
-          setStatus("La ligne sélectionnée ne contient pas de pièce jointe PDF dans la colonne configurée.");
+          setStatus("Aucun PDF trouvé pour la fiche sélectionnée.");
           return;
         }
 
         const url = await buildAttachmentUrl(attachmentId);
         viewerEl.src = url;
         viewerContainerEl.hidden = false;
-        setStatus(`PDF chargé pour « ${recordSelectEl.value} ».`);
+        setStatus("PDF affiché.");
       }
 
-      function refreshRecordSelect(rows) {
-        latestRows = (rows || []).filter(
-          (row) => row[currentMapping.menuColumn] != null && row[currentMapping.menuColumn] !== ""
+      function rebuildRecordSelect(rows) {
+        const validRows = (rows || []).filter(
+          (row) => row[currentMapping.menuColumn] != null && String(row[currentMapping.menuColumn]).trim() !== ""
         );
+        latestRows = validRows;
+        rowByKey = new Map();
 
-        recordSelectEl.innerHTML = latestRows
-          .map((row, idx) => {
-            const value = String(row[currentMapping.menuColumn]);
-            return `<option value="${escapeHtml(value)}" ${idx === 0 ? "selected" : ""}>${escapeHtml(value)}</option>`;
+        recordSelectEl.innerHTML = validRows
+          .map((row, index) => {
+            const key = rowKey(row, index);
+            const label = String(row[currentMapping.menuColumn]);
+            rowByKey.set(key, row);
+            return `<option value="${escapeHtml(key)}" ${index === 0 ? "selected" : ""}>${escapeHtml(label)}</option>`;
           })
           .join("");
 
-        if (!latestRows.length) {
+        if (!validRows.length) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
-          setStatus("Aucune donnée disponible avec la colonne menu configurée.");
+          setStatus("Aucune fiche disponible (vérifiez la colonne menu dans les options du widget).");
           return;
         }
 
-        showCurrentSelectionPdf().catch((error) => {
+        showSelectedPdf().catch((error) => {
           console.error(error);
-          setStatus("Impossible d'afficher le PDF pour cette sélection.");
+          setStatus("Impossible d'afficher le PDF.");
         });
       }
 
@@ -189,19 +145,18 @@
       }
 
       function initStandaloneMock() {
-        const mockRows = [
-          { Categorie: "Facture Janvier", PieceJointe: [11] },
-          { Categorie: "Facture Février", PieceJointe: [13] },
-        ];
         parseMapping({});
-        refreshRecordSelect(mockRows);
-        setStatus("Mode démo local: configurez menuColumn et pdfColumn dans Grist en usage réel.");
+        rebuildRecordSelect([
+          { id: 1, Categorie: "Fiche A", PieceJointe: [{ id: 11 }] },
+          { id: 2, Categorie: "Fiche B", PieceJointe: [{ id: 13 }] },
+        ]);
+        setStatus("Mode démo local (config réelle via options du widget dans Grist).");
       }
 
       function initGristMode() {
         grist.ready({
           columns: [
-            { name: "menuColumn", title: "Colonne menu (sélection)", type: "Text" },
+            { name: "menuColumn", title: "Colonne menu (sélection fiche)", type: "Text" },
             { name: "pdfColumn", title: "Colonne PDF (Attachments)", type: "Attachments" },
           ],
           requiredAccess: "read table",
@@ -209,28 +164,23 @@
 
         grist.onOptions((options) => {
           parseMapping(options);
-          if (latestRows.length) {
-            refreshRecordSelect(latestRows);
-          }
+          rebuildRecordSelect(latestRows);
         });
 
         grist.onRecords((records) => {
-          refreshRecordSelect(records || []);
+          rebuildRecordSelect(records || []);
         });
       }
 
       recordSelectEl.addEventListener("change", () => {
-        showCurrentSelectionPdf().catch((error) => {
+        showSelectedPdf().catch((error) => {
           console.error(error);
           setStatus("Erreur lors du chargement du PDF.");
         });
       });
 
-      if (window.grist && window.grist.docApi) {
-        initGristMode();
-      } else {
-        initStandaloneMock();
-      }
+      if (window.grist && window.grist.docApi) initGristMode();
+      else initStandaloneMock();
     </script>
   </body>
 </html>
