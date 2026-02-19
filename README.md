@@ -1,6 +1,6 @@
 # gristPdfSelect
 
-Widget Grist qui permet de:
+Widget Grist (fichier unique `index.html`) qui permet de:
 
 1. choisir la **colonne utilisée pour sélectionner un enregistrement**,
 2. choisir la **colonne PDF** à afficher,
@@ -19,7 +19,7 @@ Puis ouvrir <http://localhost:5173>.
 
 ## Utiliser dans Grist
 
-1. Hébergez ce dossier sur GitHub Pages (ou un autre hébergement statique).
+1. Hébergez `index.html` (GitHub Pages ou autre hébergement statique).
 2. Dans Grist, ajoutez un **Custom Widget** et renseignez l'URL publiée.
 3. (Optionnel) Configurez des colonnes par défaut dans les options du widget:
    - `menuColumn`: colonne menu par défaut,
@@ -31,6 +31,4 @@ Puis ouvrir <http://localhost:5173>.
 
 ## Structure
 
-- `index.html`: structure de l'interface,
-- `styles.css`: styles de la page,
-- `widget.js`: logique de connexion à Grist et affichage du PDF.
+- `index.html`: interface + styles + logique Grist (tout-en-un).
