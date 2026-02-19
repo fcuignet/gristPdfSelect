@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grist PDF Select Widget</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>Pièce jointe PDF</h1>
+        <p class="subtitle">
+          Choisissez une valeur puis affichez le PDF associé à la ligne sélectionnée.
+        </p>
+      </header>
+
+      <label for="record-select" class="field-label">Valeur de la colonne menu</label>
+      <select id="record-select"></select>
+
+      <p id="status" class="status">Chargement des données…</p>
+
+      <section id="viewer-container" class="viewer-container" hidden>
+        <iframe
+          id="pdf-viewer"
+          title="Visualisation PDF"
+          class="pdf-viewer"
+          loading="lazy"
+        ></iframe>
+      </section>
+    </main>
+
+    <script type="module" src="widget.js"></script>
+  </body>
+</html>
