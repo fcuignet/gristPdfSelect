@@ -1,16 +1,13 @@
 # gristPdfSelect
 
-Widget Grist en fichier unique `index.html` pour choisir une fiche dans un menu déroulant et afficher son PDF.
+Widget Grist en fichier unique `index.html` pour afficher le PDF de la ligne sélectionnée.
 
-## Fonctionnement simple
+## Fonctionnement (très simple)
 
-1. Dans les options du widget, configurez:
-   - `menuColumn` = colonne qui sert de menu déroulant (fiche),
+1. Dans les options du widget, configurez **uniquement**:
    - `pdfColumn` = colonne `Attachments` contenant le PDF.
-2. Dans le widget, sélectionnez une fiche dans le menu déroulant.
-3. Le PDF de cette fiche s'affiche directement dans la vue (iframe).
-
-> La configuration des colonnes se fait uniquement dans les options du widget Grist (pas depuis l'interface du widget).
+2. Dans la table Grist, cliquez une ligne.
+3. Le PDF de cette ligne s’affiche dans le volet du widget.
 
 ## Démarrer en local
 

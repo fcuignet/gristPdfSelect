@@ -3,63 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Grist PDF Select Widget</title>
+    <title>Grist PDF Viewer Widget</title>
     <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
     <style>
       :root { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       body { margin: 0; background: #f4f6fb; color: #1f2937; }
-      .app { max-width: 900px; margin: 0 auto; padding: 1rem; display: grid; gap: 0.75rem; }
-      h1 { margin: 0; font-size: 1.35rem; }
-      .subtitle { margin: 0.2rem 0 0; color: #4b5563; }
-      .field-label { font-weight: 600; }
-      #record-select { width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid #c8cfdb; background: #fff; }
+      .app { padding: 0.75rem; display: grid; gap: 0.6rem; }
       .status { margin: 0; color: #374151; font-size: 0.95rem; }
-      .viewer-container { border-radius: 12px; overflow: hidden; border: 1px solid #d6dbe6; background: #fff; min-height: 70vh; }
-      .pdf-viewer { border: 0; width: 100%; height: 70vh; display: block; }
+      .viewer-container { border-radius: 10px; overflow: hidden; border: 1px solid #d6dbe6; background: #fff; min-height: 80vh; }
+      .pdf-viewer { border: 0; width: 100%; height: 80vh; display: block; }
     </style>
   </head>
   <body>
     <main class="app">
-      <header>
-        <h1>Afficher le PDF d'une fiche</h1>
-        <p class="subtitle">Choisissez une fiche dans le menu déroulant pour afficher son PDF.</p>
-      </header>
-
-      <label for="record-select" class="field-label">Fiche</label>
-      <select id="record-select"></select>
-
-      <p id="status" class="status">Chargement des données…</p>
-
+      <p id="status" class="status">Chargement…</p>
       <section id="viewer-container" class="viewer-container" hidden>
         <iframe id="pdf-viewer" title="Visualisation PDF" class="pdf-viewer" loading="lazy"></iframe>
       </section>
     </main>
 
     <script>
-      const DEFAULT_MAPPING = { menuColumn: "Categorie", pdfColumn: "PieceJointe" };
+      const DEFAULT_MAPPING = { pdfColumn: "PieceJointe" };
 
-      const recordSelectEl = document.getElementById("record-select");
       const statusEl = document.getElementById("status");
       const viewerContainerEl = document.getElementById("viewer-container");
       const viewerEl = document.getElementById("pdf-viewer");
 
-      let latestRows = [];
-      let rowByKey = new Map();
       let currentMapping = { ...DEFAULT_MAPPING };
 
       function setStatus(message) { statusEl.textContent = message; }
-      function escapeHtml(value) {
-        return String(value)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/\"/g, "&quot;")
-          .replace(/'/g, "&#39;");
-      }
-
-      function rowKey(row, index) {
-        return String(row.id ?? row._id ?? index);
-      }
 
       function getAttachmentId(cellValue) {
         if (typeof cellValue === "number") return cellValue;
@@ -80,104 +52,55 @@
         return `${baseUrl}/attachments/${attachmentId}${query}`;
       }
 
-      function getSelectedRow() {
-        return rowByKey.get(recordSelectEl.value) || null;
-      }
-
-      async function showSelectedPdf() {
-        const row = getSelectedRow();
-        if (!row) {
+      async function renderRecord(record) {
+        if (!record) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
-          setStatus("Aucune fiche sélectionnée.");
+          setStatus("Sélectionnez une ligne dans la table.");
           return;
         }
 
-        const attachmentId = getAttachmentId(row[currentMapping.pdfColumn]);
+        const attachmentId = getAttachmentId(record[currentMapping.pdfColumn]);
         if (!attachmentId) {
           viewerContainerEl.hidden = true;
           viewerEl.removeAttribute("src");
-          setStatus("Aucun PDF trouvé pour la fiche sélectionnée.");
+          setStatus(`Aucun PDF trouvé dans la colonne « ${currentMapping.pdfColumn} » pour cette ligne.`);
           return;
         }
 
         const url = await buildAttachmentUrl(attachmentId);
         viewerEl.src = url;
         viewerContainerEl.hidden = false;
-        setStatus("PDF affiché.");
-      }
-
-      function rebuildRecordSelect(rows) {
-        const validRows = (rows || []).filter(
-          (row) => row[currentMapping.menuColumn] != null && String(row[currentMapping.menuColumn]).trim() !== ""
-        );
-        latestRows = validRows;
-        rowByKey = new Map();
-
-        recordSelectEl.innerHTML = validRows
-          .map((row, index) => {
-            const key = rowKey(row, index);
-            const label = String(row[currentMapping.menuColumn]);
-            rowByKey.set(key, row);
-            return `<option value="${escapeHtml(key)}" ${index === 0 ? "selected" : ""}>${escapeHtml(label)}</option>`;
-          })
-          .join("");
-
-        if (!validRows.length) {
-          viewerContainerEl.hidden = true;
-          viewerEl.removeAttribute("src");
-          setStatus("Aucune fiche disponible (vérifiez la colonne menu dans les options du widget).");
-          return;
-        }
-
-        showSelectedPdf().catch((error) => {
-          console.error(error);
-          setStatus("Impossible d'afficher le PDF.");
-        });
+        setStatus(`PDF affiché depuis la colonne « ${currentMapping.pdfColumn} ».`);
       }
 
       function parseMapping(options) {
         const mapping = options?.columns || {};
-        currentMapping = {
-          menuColumn: mapping.menuColumn || DEFAULT_MAPPING.menuColumn,
-          pdfColumn: mapping.pdfColumn || DEFAULT_MAPPING.pdfColumn,
-        };
+        currentMapping = { pdfColumn: mapping.pdfColumn || DEFAULT_MAPPING.pdfColumn };
       }
 
       function initStandaloneMock() {
-        parseMapping({});
-        rebuildRecordSelect([
-          { id: 1, Categorie: "Fiche A", PieceJointe: [{ id: 11 }] },
-          { id: 2, Categorie: "Fiche B", PieceJointe: [{ id: 13 }] },
-        ]);
-        setStatus("Mode démo local (config réelle via options du widget dans Grist).");
+        setStatus("Mode local: ce widget affiche un PDF de la ligne active dans Grist.");
       }
 
       function initGristMode() {
         grist.ready({
-          columns: [
-            { name: "menuColumn", title: "Colonne menu (sélection fiche)", type: "Text" },
-            { name: "pdfColumn", title: "Colonne PDF (Attachments)", type: "Attachments" },
-          ],
+          columns: [{ name: "pdfColumn", title: "Colonne PDF (Attachments)", type: "Attachments" }],
           requiredAccess: "read table",
         });
 
         grist.onOptions((options) => {
           parseMapping(options);
-          rebuildRecordSelect(latestRows);
+          setStatus(`Colonne PDF configurée: « ${currentMapping.pdfColumn} ».`);
         });
 
-        grist.onRecords((records) => {
-          rebuildRecordSelect(records || []);
+        grist.onRecord((record) => {
+          renderRecord(record).catch((error) => {
+            console.error(error);
+            setStatus("Erreur lors du chargement du PDF.");
+          });
         });
       }
-
-      recordSelectEl.addEventListener("change", () => {
-        showSelectedPdf().catch((error) => {
-          console.error(error);
-          setStatus("Erreur lors du chargement du PDF.");
-        });
-      });
 
       if (window.grist && window.grist.docApi) initGristMode();
       else initStandaloneMock();
